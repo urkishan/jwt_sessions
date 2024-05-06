@@ -55,6 +55,10 @@ module JWTSessions
         )
       end
 
+      def update_refresh_expiry(uuid:, expiration:, namespace: nil)
+        storage[namespace.to_s]["refresh"][uuid][:expiration] = expiration
+      end
+
       def all_refresh_tokens(namespace)
         namespace_keys = namespace.nil? ? storage.keys : [namespace]
 
@@ -69,6 +73,14 @@ module JWTSessions
 
       def destroy_access(uuid)
         storage[""]["access"].delete(uuid)
+      end
+
+      def refresh_uuid(key, namespace = "")
+        value_if_not_expired(key, "jti", namespace)[:uuid]
+      end
+
+      def set_refresh_uuid(key, uuid, expiration, namespace = "")
+        storage[namespace.to_s]["jti"].store(key, { uuid: uuid, expiration: Time.now.to_i + expiration })
       end
 
       private

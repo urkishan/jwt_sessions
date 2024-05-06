@@ -29,6 +29,13 @@ class TestRefreshToken < Minitest::Test
     token.destroy
   end
 
+  def test_update_expiry
+    token.update_expiry(
+      uuid: token.uid,
+      expiration: Time.now.to_i + 3600
+    )
+  end
+
   def test_find
     found_token = JWTSessions::RefreshToken.find(token.uid, JWTSessions.token_store, nil)
     assert_equal found_token.access_uid, token.access_uid

@@ -334,4 +334,13 @@ class TestSession < Minitest::Test
       JWTSessions::RefreshToken.find(refresh_token.uid, JWTSessions.token_store, nil).token
     end
   end
+
+  def update_refresh_expiry
+    refresh_token = @session.instance_variable_get(:"@_refresh")
+    refresh_token.update_expiry(refresh_token.uid, JWTSessions.custom_refresh_expiration(Time.now.to_i + 3600))
+
+    assert_raises JWTSessions::Errors::Unauthorized do
+      JWTSessions::RefreshToken.find(refresh_token.uid, JWTSessions.token_store, nil)
+    end
+  end
 end

@@ -82,6 +82,13 @@ module JWTSessions
       )
     end
 
+    def update_expiry(uuid, expiration)
+      store.update_refresh_expiry(
+        uuid: uuid,
+        expiration: expiration
+      )
+    end
+
     def destroy
       store.destroy_refresh(uuid, namespace)
     end
