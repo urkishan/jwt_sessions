@@ -61,6 +61,12 @@ module JWTSessions
         )
       end
 
+      def update_refresh_expiry(uuid:, expiration:, namespace: nil)
+        key = full_refresh_key(uuid, namespace)
+        storage.hset(key, :expiration, expiration)
+        storage.expireat(key, expiration)
+      end
+
       def all_refresh_tokens(namespace)
         keys_in_namespace = storage.keys(refresh_key("*", namespace))
         (keys_in_namespace || []).each_with_object({}) do |key, acc|
@@ -76,6 +82,14 @@ module JWTSessions
 
       def destroy_access(uuid)
         storage.del(access_key(uuid))
+      end
+
+      def refresh_uuid(key)
+        storage.get(jti_key(key))
+      end
+
+      def set_refresh_uuid(key, uuid, expiration)
+        storage.set(jti_key(key), uuid, ex: expiration)
       end
 
       private
@@ -132,6 +146,10 @@ module JWTSessions
 
       def uuid_from_key(key)
         key.split("_").last
+      end
+
+      def jti_key(key)
+        "refresh_jti_#{key}"
       end
     end
   end

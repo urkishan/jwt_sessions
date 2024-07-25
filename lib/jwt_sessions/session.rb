@@ -32,6 +32,13 @@ module JWTSessions
       tokens_hash
     end
 
+    def renew_tokens(jti, expiration)
+      flush_by_jti(jti)
+      login
+      reset_refresh_uuid(jti, @_refresh.uuid, expiration)
+      tokens_hash
+    end
+
     def valid_csrf?(token, csrf_token, token_type = :access)
       send(:"valid_#{token_type}_csrf?", token, csrf_token)
     end
@@ -82,6 +89,12 @@ module JWTSessions
       token.destroy
     end
 
+    # flush the session by refresh token jti
+    def flush_by_jti(jti)
+      uuid = refresh_uuid(jti)
+      flush_by_uuid(uuid) if uuid
+    end
+
     # flush access tokens only and keep refresh
     def flush_namespaced_access_tokens
       return 0 unless namespace
@@ -118,6 +131,19 @@ module JWTSessions
       return false unless uuid == refresh_token.access_uuid
 
       CSRFToken.new(refresh_token.csrf).valid_authenticity_token?(external_csrf_token)
+    end
+
+    def update_refresh_expiry(uuid, expiration)
+      token = retrieve_refresh_token(uuid)
+      token.update_expiry(uuid, JWTSessions.custom_refresh_expiration(expiration))
+    end
+
+    def refresh_uuid(jti)
+      store.refresh_uuid(jti)
+    end
+
+    def reset_refresh_uuid(jti, uuid, expiration)
+      store.set_refresh_uuid(jti, uuid, expiration)
     end
 
     private
