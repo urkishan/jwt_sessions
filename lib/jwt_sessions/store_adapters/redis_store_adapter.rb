@@ -32,7 +32,7 @@ module JWTSessions
       end
 
       def fetch_refresh(uuid, namespace, first_match = false)
-        key    = first_match ? first_refresh_key(uuid) : full_refresh_key(uuid, namespace)
+        key    = full_refresh_key(uuid, namespace)
         values = storage.hmget(key, *REFRESH_KEYS).compact
 
         return {} if values.length != REFRESH_KEYS.length
@@ -68,7 +68,7 @@ module JWTSessions
       end
 
       def all_refresh_tokens(namespace)
-        keys_in_namespace = storage.keys(refresh_key("*", namespace))
+        keys_in_namespace = scan_keys(refresh_key("*", namespace))
         (keys_in_namespace || []).each_with_object({}) do |key, acc|
           uuid = uuid_from_key(key)
           acc[uuid] = fetch_refresh(uuid, namespace)
@@ -107,9 +107,11 @@ module JWTSessions
 
         config = if redis_cluster
                    { cluster: redis_url,
-                     password: redis_password }
+                     password: redis_password,
+                     driver: :hiredis }
                  else
-                   { url: redis_url }
+                   { url: redis_url,
+                     driver: :hiredis }
                  end
 
         Redis.new(config)
@@ -131,8 +133,29 @@ module JWTSessions
       end
 
       def first_refresh_key(uuid)
-        key = full_refresh_key(uuid, "*")
-        (storage.keys(key) || []).first
+        pattern = full_refresh_key(uuid, "*")
+        scan_keys(pattern, count: 1).first
+      end
+
+      def scan_keys(pattern, count: 100)
+        keys = []
+        cursor = "0"
+
+        loop do
+          cursor, result = storage.scan(cursor, match: pattern, count: count)
+          keys.concat(result)
+
+          # Break early if we found enough keys for first_refresh_key
+          break if count == 1 && keys.any?
+          break if cursor == "0"
+        end
+
+        keys
+      rescue Redis::CommandError => e
+        # Fallback for Redis versions that don't support SCAN
+        # or if there's a cluster issue
+        Rails.logger.warn("SCAN failed, falling back to direct key lookup: #{e.message}") if defined?(Rails)
+        []
       end
 
       def refresh_key(uuid, namespace)
